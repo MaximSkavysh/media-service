@@ -26,10 +26,7 @@ import java.util.stream.Stream;
 @AllArgsConstructor
 public class FilesStorageServiceImpl implements FilesStorageService {
 
-    @Value("${storage.location}")
-    private final String location;
-
-    private final Path rootLocation = Paths.get(location);
+    private final Path rootLocation = Paths.get("uploads");
 
     private final FileDbRepository fileDbRepository;
 
