@@ -1,7 +1,9 @@
 package com.lobster.ecommerce.media.service.impl;
 
+import com.lobster.ecommerce.media.dto.RequestDto;
 import com.lobster.ecommerce.media.exception.FileNotFoundException;
 import com.lobster.ecommerce.media.exception.StorageException;
+import com.lobster.ecommerce.media.model.FileDb;
 import com.lobster.ecommerce.media.repository.FileDbRepository;
 import com.lobster.ecommerce.media.service.FilesStorageService;
 import lombok.AllArgsConstructor;
@@ -20,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
 import java.util.stream.Stream;
 
 @Service
@@ -41,29 +44,35 @@ public class FilesStorageServiceImpl implements FilesStorageService {
     }
 
     @Override
-    public void save(MultipartFile file) {
-        if (file != null && file.getOriginalFilename() != null) {
-            String filename = StringUtils.cleanPath(file.getOriginalFilename());
-            try {
-                if (file.isEmpty()) {
+    public void save(RequestDto requestDto) {
+        MultipartFile[] files = requestDto.getFiles();
+        Arrays.asList(files).stream().forEach(file -> {
+            if (file != null && file.getOriginalFilename() != null) {
+                String filename = StringUtils.cleanPath(file.getOriginalFilename());
+                try {
+                    if (file.isEmpty()) {
+                        throw new StorageException(
+                                "Failed to store empty file " + filename);
+                    }
+                    if (filename.contains("..")) {
+                        // This is a security check
+                        throw new StorageException(
+                                "Cannot store file with relative path outside current directory "
+                                        + filename);
+                    }
+                    try (InputStream inputStream = file.getInputStream()) {
+                        Path url = this.rootLocation.resolve(filename);
+                        FileDb fileDb = new FileDb(requestDto.getProduct_id(), filename, file.getContentType(), url.toString());
+                        fileDbRepository.save(fileDb);
+                        Files.copy(inputStream, url,
+                                StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (IOException e) {
                     throw new StorageException(
-                            "Failed to store empty file " + filename);
+                            "Failed to store file " + filename, e);
                 }
-                if (filename.contains("..")) {
-                    // This is a security check
-                    throw new StorageException(
-                            "Cannot store file with relative path outside current directory "
-                                    + filename);
-                }
-                try (InputStream inputStream = file.getInputStream()) {
-                    Files.copy(inputStream, this.rootLocation.resolve(filename),
-                            StandardCopyOption.REPLACE_EXISTING);
-                }
-            } catch (IOException e) {
-                throw new StorageException(
-                        "Failed to store file " + filename, e);
             }
-        }
+        });
 
     }
 
